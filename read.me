@@ -1,0 +1,123 @@
+## Scrum Poker web app — V1 plan & hosting notes
+
+### Goal (V1)
+Build a simple, robust real-time Scrum Poker web app:
+- Create a room on the website
+- Share a link
+- Others join the same room
+- Everyone votes (hidden), then reveal + reset rounds
+
+### Core V1 features
+- Create room → unique room id + share URL
+- Join room → enter display name (no accounts/passwords in V1)
+- Presence → show who is in the room (with reconnect tolerance)
+- Voting round:
+  - pick a card (vote hidden until reveal)
+  - show “X votes submitted” (optional)
+  - moderator can Reveal + Reset (next round)
+- Optional: topic/issue label per round
+
+### Simple roles
+- Room creator becomes moderator
+- If moderator leaves: assign a new moderator (first/next participant)
+
+### Recommended tech stack (VPS-friendly, Python-first)
+- Backend + pages: Python + Flask
+- Templates: Jinja2 (Flask templates)
+- Realtime: WebSockets via Flask-SocketIO (Socket.IO semantics, Python server)
+- Database: PostgreSQL (recommended for public/unknown users)
+- Reverse proxy (VPS): Nginx for HTTPS + WebSocket proxying
+- Process management (VPS): systemd
+- Optional for scaling beyond 1 process: Redis (Socket.IO message queue)
+
+### System overview
+- Browsers load HTML via HTTPS (server-rendered templates)
+- Browser JS connects to Socket.IO endpoint for realtime updates
+- Server is source of truth (clients can’t “reveal” by themselves)
+- Server stores votes hidden until reveal event
+- After reveal, server emits revealed results to the room
+
+### Data model (minimal)
+- rooms: id, created_at, last_active_at, state (voting/revealed), round_number, current_topic, moderator_participant_id
+- participants: id, room_id, display_name, joined_at, last_seen_at
+- votes: room_id, participant_id, value, round_number
+
+### Robustness requirements (still V1)
+- Reconnect handling:
+  - store participant_id in secure session cookie
+  - on reconnect, map socket to existing participant
+  - use last_seen_at for presence tolerance (e.g. consider “present” if seen in last 60s)
+- Basic validation + rate limiting (HTTP routes + socket events)
+- Room expiration (auto-delete inactive rooms after N hours/days)
+- Keep DB/app region in EU
+
+### Hosting conclusions
+- Traditional shared hosting is usually NOT suitable for WebSockets.
+- Use a VPS or a managed app platform that explicitly supports WebSockets.
+- You can still use your own .nl domain and point it to where the app runs.
+
+### EU/EER “on European soil”
+- Choose EU region for both app + database (and ideally backups/logs too).
+
+### TransIP notes (deployment target)
+- TransIP can host both domain + DNS, and you can run the app on their VPS.
+- Minimal VPS suggestion for V1:
+  - 1 vCPU, 1 GB RAM for small usage
+  - Prefer 2 GB RAM if running Postgres on the same VPS
+- Reliability baseline for public users:
+  - systemd auto-restart for app process
+  - off-VPS Postgres backups (at least daily)
+  - basic uptime monitoring
+  - firewall + security updates
+
+### Local development plan (now)
+- Install: Python 3.12+ (or your preferred), Git, (optional) Docker Desktop
+- Run Postgres locally (Docker or native)
+- Use env vars via `.env` in dev; later systemd env on VPS
+- Build V1 with Flask + Jinja + Flask-SocketIO + Postgres
+
+### Build plan (step-by-step)
+1) Define V1 scope (must-have vs nice-to-have)
+2) Create project skeleton:
+   - app/ (Flask app)
+   - templates/ (Jinja pages)
+   - static/ (minimal JS + CSS)
+3) Add dependencies:
+   - Flask, Flask-SocketIO
+   - Postgres driver + DB layer (SQLAlchemy or plain SQL)
+4) Add Postgres locally and create minimal schema (rooms, participants, votes)
+5) Implement HTTP pages:
+   - GET / (create room)
+   - POST /rooms (create room + creator becomes moderator)
+   - GET /r/<room_id> (room page; join prompt or room UI)
+   - POST /r/<room_id>/join (set display name + session cookie)
+6) Implement Socket.IO event protocol:
+   - Client→Server: join_room, vote, reveal, reset, set_topic(optional)
+   - Server→Client: room_state (authoritative snapshot), error
+   - Rule: before reveal, never send vote values (only has_voted/count)
+7) Identity + reconnect:
+   - store participant_id in secure cookie session
+   - map socket connection to participant on connect
+8) Presence:
+   - update last_seen_at on connect/ping/events
+   - show present participants (recent last_seen_at)
+9) Public-safety minimums:
+   - rate limiting (create/join/vote; socket events too)
+   - input validation for names/topic/votes
+   - moderator-only authorization for reveal/reset
+   - room expiration cleanup
+10) Test locally end-to-end:
+   - create room → multi-browser join → vote → reveal → reset → refresh/reconnect
+11) Deploy to TransIP VPS:
+   - Nginx (HTTPS + WebSocket upgrade proxy)
+   - run app under systemd
+   - Postgres on VPS (or later migrate to managed Postgres)
+   - automated backups + monitoring
+
+### Open decisions to confirm later
+- Subdomain (recommended): poker.yourdomain.nl or scrumpoker.yourdomain.nl vs main domain
+- DB approach for V1:
+  - Self-host Postgres on the VPS (cheapest) + solid backups
+  - or managed Postgres (less maintenance)
+- Scaling:
+  - single app process (V1) vs multiple workers (requires Redis message queue for Socket.IO)
