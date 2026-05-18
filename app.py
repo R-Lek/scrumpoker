@@ -1,10 +1,11 @@
 import os
 import psycopg
 
-from flask import Flask, flash, redirect, render_template, request, session, g
+from flask import Flask, flash, redirect, render_template, request, session, g, url_for
 from flask_session import Session
-from helpers import apology
+from helpers import apology, DECK
 from psycopg import errors as pg_errors
+from psycopg.rows import dict_row
 
 # Configure application
 app = Flask(__name__)
@@ -42,9 +43,7 @@ def after_request(response):
 @app.route("/")
 def index():
     """Show Scrum Poker rooms"""
-
-    # Use %s placeholders with psycopg (not ? like SQLite).
-    # Always pass parameters as a tuple/list (prevents SQL injection).
+    # Future Feature
 
     # db = get_db()
     # with db.cursor() as cur:
@@ -65,14 +64,15 @@ def create():
             return apology("must provide display name", 400)
 
         else:
-            print("we're in")
             db = get_db()
 
             try:
+                # A room is created for the user
                 roomId = db.execute(
                     "INSERT INTO rooms DEFAULT VALUES RETURNING id"
                 ).fetchone()[0]
 
+                # The user is registered for the room
                 participantId = db.execute(
                     """
                     INSERT INTO participants (room_id, display_name)
@@ -88,20 +88,50 @@ def create():
             session["room_id"] = str(roomId)
             session["participant_id"] = participantId
 
-            return redirect(f"/room/{roomId}")
+            # User is redirected to the room
+            return redirect(url_for("room", room_id=session["room_id"]))
 
-    # When it's a GET, go to the register.html page to register a user account
+    # When GET render the Create Room template
     else:
         return render_template("create.html")
 
+@app.route("/room/<uuid:room_id>", methods=["GET", "POST"])
+def room(room_id):
+    """ New Scrum Poker Room """
+    if request.method == "POST":
 
-# @app.route("/room/<uuid:room_id>")
-# def room(room_id):
-#     db = get_db()
-#     row = db.execute(
-#         "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
-#         (room_id,),
-#     ).fetchall()
-#     participants = row  # list of tuples; or use row_factory for dicts
-#     return render_template("room.html", room_id=room_id, participants=participants)
+        # Card vote isn't empty
+        if not request.form.get("vote"):
+            return apology("Card vote invalid", 400)
+
+        else:
+            # Get symbol from form request
+            cardValue = request.form.get("vote")
+            # Update participants database with chosen vote / card vote
+            db = get_db()
+            with db.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    "UPDATE participants SET vote = %s WHERE id = %s AND room_id = %s", 
+                    (cardValue, session["participant_id"], room_id)
+                )
+                # Retrieve values from participants database after update
+                cur.execute(
+                "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
+                (room_id,),
+                )
+                participants = cur.fetchall()
+                print("successful POST!")
+            return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
+        
+
+    else:
+        # GET request
+        db = get_db()
+        with db.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
+                (room_id,),
+            )
+            participants = cur.fetchall()
+        return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
 

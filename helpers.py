@@ -3,6 +3,8 @@ import requests
 from flask import redirect, render_template, session
 from functools import wraps
 
+DECK = ("1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "coffee")
+
 def apology(message, code=400):
     """Render message as an apology to user."""
 

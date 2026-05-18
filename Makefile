@@ -6,3 +6,6 @@ database:
 
 postgres:
 	# DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/scrumpoker" python -m flask --app app run --debug
+
+dependencies:
+	.venv/bin/pip install -r requirements.txt
