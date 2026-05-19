@@ -135,3 +135,13 @@ def room(room_id):
             participants = cur.fetchall()
         return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
 
+
+@app.route("/logout")
+def logout():
+    """Log user out"""
+
+    # Forget any user_id
+    session.clear()
+
+    # Redirect user to login form
+    return redirect("/")
