@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+
+{% block nav %}{% endblock %}
+
+{% block main %}
+    <h4>Enter display name</h4>
+    <form action="{{ url_for('lobby', room_id=room_id) }}"" method="post">
+        <div class="mb-3">
+            <input autocomplete="off" autofocus class="form-control w-50 mx-auto" name="displayname" placeholder="My display name" type="text">
+        </div>
+        <div class="mb-3">
+            <button class="btn btn-primary w-50 mx-auto" type="submit">Continue to room</button>
+        </div>
+    </form>
+{% endblock %}

@@ -67,12 +67,12 @@ def create():
             db = get_db()
 
             try:
-                # A room is created for the user
+                # Create a room for the user
                 roomId = db.execute(
                     "INSERT INTO rooms DEFAULT VALUES RETURNING id"
                 ).fetchone()[0]
 
-                # The user is registered for the room
+                # Register user for the room
                 participantId = db.execute(
                     """
                     INSERT INTO participants (room_id, display_name)
@@ -98,6 +98,16 @@ def create():
 @app.route("/room/<uuid:room_id>", methods=["GET", "POST"])
 def room(room_id):
     """ New Scrum Poker Room """
+
+    # Check if room exists
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT id FROM rooms WHERE id = %s", (room_id,))
+        room = cur.fetchone()
+
+    if not room:
+        return apology("room doesn't exist", 404)
+
     if request.method == "POST":
 
         # Card vote isn't empty
@@ -105,14 +115,14 @@ def room(room_id):
             return apology("Card vote invalid", 400)
 
         else:
-            # Get symbol from form request
+            # Get card vote from form request
             cardValue = request.form.get("vote")
             # Update participants database with chosen vote / card vote
             db = get_db()
             with db.cursor(row_factory=dict_row) as cur:
                 cur.execute(
                     "UPDATE participants SET vote = %s WHERE id = %s AND room_id = %s", 
-                    (cardValue, session["participant_id"], room_id)
+                    (cardValue, session.get("participant_id"), room_id)
                 )
                 # Retrieve values from participants database after update
                 cur.execute(
@@ -120,20 +130,81 @@ def room(room_id):
                 (room_id,),
                 )
                 participants = cur.fetchall()
-                print("successful POST!")
+                
             return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
         
 
     else:
-        # GET request
+        # GET request: Check whether participant already has a session value
+        participant_id = session.get("participant_id")
+
+        if participant_id:
+            db = get_db()
+            with db.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM participants
+                    WHERE id = %s AND room_id = %s
+                    """,
+                    (participant_id, room_id),
+                )
+                participant = cur.fetchone()
+
+                # Check if participant actually exist in database for this room
+                if participant:
+                    cur.execute(
+                        "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
+                        (room_id,),
+                    )
+                    participants = cur.fetchall()
+
+                    return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
+
+        return redirect(url_for("lobby", room_id=room_id))
+
+@app.route("/lobby/<uuid:room_id>", methods=["GET", "POST"])
+def lobby(room_id):
+    """Register new participants to lobby"""
+    # Check if room exist
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT id FROM rooms WHERE id = %s", (room_id,))
+        room = cur.fetchone()
+
+    if not room:
+        return apology("room doesn't exist", 404)
+
+    if request.method == "POST":
+        # Render an apology if the user’s input is blank
+        displayName = request.form.get("displayname").strip()
+        if not displayName:
+            return apology("must provide display name", 400)
+
         db = get_db()
-        with db.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
-                (room_id,),
-            )
-            participants = cur.fetchall()
-        return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
+
+        try:
+            # Register user for the room
+            participantId = db.execute(
+                """
+                INSERT INTO participants (room_id, display_name)
+                VALUES (%s, %s)
+                RETURNING id
+                """,
+                (room_id, displayName),
+            ).fetchone()[0]
+
+        except pg_errors.UniqueViolation:
+            return apology("display name is already taken", 400)
+
+        session["participant_id"] = participantId
+        session["room_id"] = str(room_id)
+
+        # User is redirected to the room
+        return redirect(url_for("room", room_id=room_id))
+
+    else:
+        return render_template("lobby.html", room_id=room_id)
 
 
 @app.route("/logout")

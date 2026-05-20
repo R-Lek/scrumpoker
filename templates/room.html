@@ -3,8 +3,8 @@
 {% block body_attrs %} class="room-page"{% endblock %}
 
 {% block nav %}
-    {% if session["participant_id"] %}
-        <div class="navbar-nav ms-auto>
+    {% if session.get("participant_id") %}
+        <div class="navbar-nav ms-auto">
             <div class="collapse navbar-collapse" id="navbar"></div>
             <a class="btn btn-success" href="/logout">Logout</a>
         </div>
@@ -14,7 +14,7 @@
 {% block main %}
     <div class="room-page__header">
         <h1 class="room-page__title">Room</h1>
-        <p class="room-page__meta text-muted">{{ room_id }}</p>
+        <p class="room-page__meta text-muted">http://127.0.0.1:5000/room/{{ room_id }}</p>
     </div>
 
     <ul class="room-page__roster list-unstyled">
