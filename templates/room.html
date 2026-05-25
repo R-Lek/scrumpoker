@@ -12,14 +12,39 @@
 {% endblock %}
 
 {% block main %}
-    <div class="room-page__header">
+    <!-- <div class="room-page__header">
         <h1 class="room-page__title">Room</h1>
-        <button type="button" id="reveal-btn" class="btn btn-primary">Reveal</button>
-        <button type="button" id="reset-btn" class="btn btn-secondary">Reset</button>
         <p class="room-page__meta text-muted">http://127.0.0.1:5000/room/{{ room_id }}</p>
-    </div>
+    </div> -->
 
-    <ul id="roster" class="room-page__roster list-unstyled"></ul>
+    <section class="table-layout" aria-label="Voting table">
+        <div class="table-grid">
+            <div aria-hidden="true"></div>
+            <div id="seats-top" class="table-grid__top"></div>
+            <div aria-hidden="true"></div>
+
+            <div id="seats-left" class="table-grid__left"></div>
+            <div class="table-grid__table">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <div class="table-grid__table-content">
+                    <p id="table-status" class="table-grid__status">Pick a card!</p>
+                    <button
+                        type="button"
+                        id="table-action-btn"
+                        class="table-grid__action table-grid__action--hidden"
+                    ></button>
+                </div>
+            </div>
+            <div id="seats-right" class="table-grid__right"></div>
+
+            <div aria-hidden="true"></div>
+            <div id="seats-bottom" class="table-grid__bottom"></div>
+            <div aria-hidden="true"></div>
+        </div>
+    </section>
 
     <div class="card-selector" role="region" aria-label="Choose estimate">
         <ul class="card-selector__list">
@@ -40,32 +65,127 @@
     </div>
 
     <script>
-        // JS logic for handling socket.IO 
+        // JS logic for handling socket.IO
         const socket = io();
         const roomId = "{{ room_id }}";
-        const roster = document.getElementById("roster");
+        const currentParticipantId = {{ session.get("participant_id") | tojson }};
+        const seatAreas = {
+            top: document.getElementById("seats-top"),
+            left: document.getElementById("seats-left"),
+            right: document.getElementById("seats-right"),
+            bottom: document.getElementById("seats-bottom")
+        };
+        const tableStatus = document.getElementById("table-status");
+        const tableActionButton = document.getElementById("table-action-btn");
+
+        function formatCardLabel(value) {
+            return value === "coffee" ? "☕" : value;
+        }
+
+        function updateActionArea(currentParticipant, votesRevealed) {
+            if (votesRevealed) {
+                tableStatus.textContent = "";
+                tableActionButton.textContent = "Start new voting";
+                tableActionButton.dataset.action = "reset";
+                tableActionButton.classList.remove("table-grid__action--hidden");
+                return;
+            }
+
+            if (currentParticipant && currentParticipant.has_voted) {
+                tableStatus.textContent = "";
+                tableActionButton.textContent = "Reveal cards";
+                tableActionButton.dataset.action = "reveal";
+                tableActionButton.classList.remove("table-grid__action--hidden");
+                return;
+            }
+
+            tableStatus.textContent = "Pick a card!";
+            tableActionButton.textContent = "";
+            tableActionButton.dataset.action = "";
+            tableActionButton.classList.add("table-grid__action--hidden");
+        }
+
+        function updateSelectedVote(currentVote) {
+            document.querySelectorAll(".card-selector__btn").forEach(function (button) {
+                button.classList.toggle("card-selector__btn--selected", button.dataset.value === currentVote);
+            });
+        }
+
+        function distributeParticipants(participants) {
+            const buckets = { top: [], left: [], right: [], bottom: [] };
+            const currentParticipant = participants.find(function (participant) {
+                return String(participant.id) === String(currentParticipantId);
+            });
+            const remainingParticipants = participants.filter(function (participant) {
+                return String(participant.id) !== String(currentParticipantId);
+            });
+            const sideOrder = ["top", "left", "right", "bottom"];
+
+            if (currentParticipant) {
+                buckets.bottom.push(currentParticipant);
+            }
+
+            remainingParticipants.forEach(function (participant, index) {
+                const side = sideOrder[index % sideOrder.length];
+                buckets[side].push(participant);
+            });
+
+            return { buckets, currentParticipant };
+        }
+
+        function buildPlayerMarkup(participant, votesRevealed) {
+            const playerContainer = document.createElement("div");
+            playerContainer.className = "player-slot";
+
+            const playerWrapper = document.createElement("div");
+            playerWrapper.className = "player-slot__wrapper";
+
+            const cardContainer = document.createElement("div");
+            cardContainer.className = "player-slot__card-container";
+
+            const card = document.createElement("div");
+            card.className = "player-card";
+
+            if (votesRevealed && participant.vote !== null) {
+                card.classList.add("player-card--revealed");
+                card.textContent = formatCardLabel(participant.vote);
+            } else if (!votesRevealed && participant.has_voted) {
+                card.classList.add("player-card--hidden");
+            } else {
+                card.classList.add("player-card--empty");
+            }
+
+            const profileContainer = document.createElement("div");
+            profileContainer.className = "player-slot__profile";
+
+            const playerName = document.createElement("div");
+            playerName.className = "player-slot__name";
+            playerName.textContent = participant.display_name;
+
+            cardContainer.appendChild(card);
+            profileContainer.appendChild(playerName);
+            playerWrapper.appendChild(cardContainer);
+            playerWrapper.appendChild(profileContainer);
+            playerContainer.appendChild(playerWrapper);
+
+            return playerContainer;
+        }
 
         function renderRoomState(data) {
-            roster.innerHTML = "";
-
-            data.participants.forEach(function (participant) {
-                const item = document.createElement("li");
-                item.className = "room-page__roster-item";
-
-                let voteText = "Not voted";
-                if (participant.vote !== null) {
-                    voteText = participant.vote;
-                } else if (participant.has_voted) {
-                    voteText = "Voted";
-                }
-
-                item.innerHTML = `
-                    <p>Name: ${participant.display_name}</p>
-                    <p>Vote: ${voteText}</p>
-                `;
-
-                roster.appendChild(item);
+            Object.values(seatAreas).forEach(function (seatArea) {
+                seatArea.innerHTML = "";
             });
+
+            const placement = distributeParticipants(data.participants);
+
+            Object.entries(placement.buckets).forEach(function ([side, participants]) {
+                participants.forEach(function (participant) {
+                    seatAreas[side].appendChild(buildPlayerMarkup(participant, data.votes_revealed));
+                });
+            });
+
+            updateActionArea(placement.currentParticipant, data.votes_revealed);
+            updateSelectedVote(data.current_vote);
         }
   
         socket.on("connect", function () {
@@ -84,13 +204,14 @@
                 });
             });
         });
-        // Reveal JS
-        document.getElementById("reveal-btn").addEventListener("click", function () {
-            socket.emit("reveal", { room_id: roomId });
-        });
-        // Reset JS 
-        document.getElementById("reset-btn").addEventListener("click", function () {
-            socket.emit("reset", { room_id: roomId });
+        tableActionButton.addEventListener("click", function () {
+            if (tableActionButton.dataset.action === "reveal") {
+                socket.emit("reveal", { room_id: roomId });
+            }
+
+            if (tableActionButton.dataset.action === "reset") {
+                socket.emit("reset", { room_id: roomId });
+            }
         });
     </script>
 {% endblock %}

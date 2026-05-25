@@ -35,6 +35,7 @@ def apology(message, code=400):
 def build_room_state(room_id):
     """Build room_state payload for Socket IO"""
 
+    current_participant_id = session.get("participant_id")
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -59,10 +60,17 @@ def build_room_state(room_id):
         participants = cur.fetchall()
 
     votes_revealed = room["votes_revealed"]
+    current_vote = None
+
+    for participant in participants:
+        if participant["id"] == current_participant_id:
+            current_vote = participant["vote"]
+            break
 
     return {
         "room_id": str(room_id),
         "votes_revealed": votes_revealed,
+        "current_vote": current_vote,
         "participants": [
             {
                 "id": participant["id"],
