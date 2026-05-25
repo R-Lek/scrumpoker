@@ -6,6 +6,7 @@
     {% if session.get("participant_id") %}
         <div class="navbar-nav ms-auto">
             <div class="collapse navbar-collapse" id="navbar"></div>
+            <a id="btn__copy" class="btn btn-success me-2" >Copy Room</a>
             <a class="btn btn-success" href="/logout">Logout</a>
         </div>
     {% endif %}
@@ -68,7 +69,9 @@
         // JS logic for handling socket.IO
         const socket = io();
         const roomId = "{{ room_id }}";
+        const roomUrl = "http://127.0.0.1:5000/room/{{ room_id }}";
         const currentParticipantId = {{ session.get("participant_id") | tojson }};
+        const copyRoomButton = document.getElementById("btn__copy");
         const seatAreas = {
             top: document.getElementById("seats-top"),
             left: document.getElementById("seats-left"),
@@ -187,6 +190,39 @@
             updateActionArea(placement.currentParticipant, data.votes_revealed);
             updateSelectedVote(data.current_vote);
         }
+
+        async function copyRoomUrl() {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(roomUrl);
+                return;
+            }
+
+            const fallbackInput = document.createElement("textarea");
+            fallbackInput.value = roomUrl;
+            fallbackInput.setAttribute("readonly", "");
+            fallbackInput.style.position = "absolute";
+            fallbackInput.style.left = "-9999px";
+            document.body.appendChild(fallbackInput);
+            fallbackInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(fallbackInput);
+        }
+
+        // Briefly changes button text when clicked
+        function flashCopyButton(label) {
+            if (!copyRoomButton) {
+                return;
+            }
+
+            const originalLabel = copyRoomButton.dataset.originalLabel || copyRoomButton.textContent.trim();
+            copyRoomButton.dataset.originalLabel = originalLabel;
+            copyRoomButton.textContent = label;
+
+            window.clearTimeout(copyRoomButton._resetTimer);
+            copyRoomButton._resetTimer = window.setTimeout(function () {
+                copyRoomButton.textContent = originalLabel;
+            }, 1600);
+        }
   
         socket.on("connect", function () {
             socket.emit("join_room", { room_id: roomId });
@@ -213,5 +249,16 @@
                 socket.emit("reset", { room_id: roomId });
             }
         });
+
+        if (copyRoomButton) {
+            copyRoomButton.addEventListener("click", async function () {
+                try {
+                    await copyRoomUrl();
+                    flashCopyButton("Copied!");
+                } catch (error) {
+                    flashCopyButton("Copy failed");
+                }
+            });
+        }
     </script>
 {% endblock %}

@@ -147,7 +147,7 @@ body.room-page main {
     border-radius: 1.1rem;
     background: var(--room-accent);
     color: #0f170f;
-    font-size: clamp(1.4rem, 2vw, 2.2rem);
+    font-size: clamp(1rem, 2vw, 2rem);
     font-weight: 700;
     transition: transform 0.12s ease, background-color 0.12s ease;
 }
@@ -213,7 +213,7 @@ body.room-page main {
     border: 2px solid rgba(61, 214, 140, 0.18);
     background: rgba(40, 55, 40, 0.92);
     color: #e8f0e8;
-    font-size: 1.25rem;
+    font-size: 0.95rem;
     font-weight: 700;
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
@@ -364,7 +364,7 @@ body.room-page main {
     }
 
     .player-card {
-        font-size: 1.1rem;
+        font-size: 0.9rem;
     }
 
     .card-selector__btn {
