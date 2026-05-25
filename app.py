@@ -3,7 +3,8 @@ import psycopg
 
 from flask import Flask, flash, redirect, render_template, request, session, g, url_for
 from flask_session import Session
-from helpers import apology, DECK
+from flask_socketio import SocketIO, emit, join_room
+from helpers import apology, DECK, build_room_state, get_db
 from psycopg import errors as pg_errors
 from psycopg.rows import dict_row
 
@@ -14,12 +15,9 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
-Session(app)
 
-def get_db():
-    if "db" not in g:
-        g.db = psycopg.connect(os.environ["DATABASE_URL"])
-    return g.db
+Session(app)
+socketio = SocketIO(app)
 
 @app.teardown_request
 def close_db(exc):
@@ -95,7 +93,7 @@ def create():
     else:
         return render_template("create.html")
 
-@app.route("/room/<uuid:room_id>", methods=["GET", "POST"])
+@app.route("/room/<uuid:room_id>", methods=["GET"])
 def room(room_id):
     """ New Scrum Poker Room """
 
@@ -108,64 +106,33 @@ def room(room_id):
     if not room:
         return apology("room doesn't exist", 404)
 
-    if request.method == "POST":
+    # Check whether participant already has a session value
+    participant_id = session.get("participant_id")
 
-        # Card vote isn't empty
-        if not request.form.get("vote"):
-            return apology("Card vote invalid", 400)
+    # Check if participant actually exist in database for this room
+    if participant_id:
+        db = get_db()
+        with db.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT id
+                FROM participants
+                WHERE id = %s AND room_id = %s
+                """,
+                (participant_id, room_id),
+            )
+            participant = cur.fetchone()
 
-        else:
-            # Get card vote from form request
-            cardValue = request.form.get("vote")
-            # Update participants database with chosen vote / card vote
-            db = get_db()
-            with db.cursor(row_factory=dict_row) as cur:
-                cur.execute(
-                    "UPDATE participants SET vote = %s WHERE id = %s AND room_id = %s", 
-                    (cardValue, session.get("participant_id"), room_id)
-                )
-                # Retrieve values from participants database after update
-                cur.execute(
-                "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
-                (room_id,),
-                )
-                participants = cur.fetchall()
-                
-            return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
-        
+            if participant:
+                return render_template("room.html", room_id=room_id, deck=DECK)
 
-    else:
-        # GET request: Check whether participant already has a session value
-        participant_id = session.get("participant_id")
-
-        if participant_id:
-            db = get_db()
-            with db.cursor(row_factory=dict_row) as cur:
-                cur.execute(
-                    """
-                    SELECT id
-                    FROM participants
-                    WHERE id = %s AND room_id = %s
-                    """,
-                    (participant_id, room_id),
-                )
-                participant = cur.fetchone()
-
-                # Check if participant actually exist in database for this room
-                if participant:
-                    cur.execute(
-                        "SELECT id, display_name, vote FROM participants WHERE room_id = %s ORDER BY joined_at",
-                        (room_id,),
-                    )
-                    participants = cur.fetchall()
-
-                    return render_template("room.html", room_id=room_id, participants=participants, deck=DECK)
-
-        return redirect(url_for("lobby", room_id=room_id))
+    # Redirect when user is no active participant
+    return redirect(url_for("lobby", room_id=room_id))
 
 @app.route("/lobby/<uuid:room_id>", methods=["GET", "POST"])
 def lobby(room_id):
-    """Register new participants to lobby"""
+    """Join new participants to existing Room"""
+
     # Check if room exist
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
@@ -216,3 +183,164 @@ def logout():
 
     # Redirect user to login form
     return redirect("/")
+
+@socketio.on("join_room")
+def handle_join_room(data):
+    """Socket IO room handler"""
+
+    room_id = data.get("room_id")
+    participant_id = session.get("participant_id")
+
+    if not participant_id:
+        emit("error", {"message": "Not joined"})
+        return
+
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+        participant = cur.fetchone()
+
+    if not participant:
+        emit("error", {"message": "Invalid participant"})
+        return
+
+    join_room(room_id)
+    emit("room_state", build_room_state(room_id), to=room_id)
+
+@socketio.on("vote")
+def handle_vote(data):
+    """Socket IO vote handler"""
+
+    room_id = data.get("room_id")
+    card_value = data.get("vote")
+    participant_id = session.get("participant_id")
+
+    if not participant_id:
+        emit("error", {"message": "Not joined"})
+        return
+
+    if card_value not in DECK:
+        emit("error", {"message": "Invalid vote"})
+        return
+
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+        participant = cur.fetchone()
+
+        if not participant:
+            emit("error", {"message": "Invalid participant"})
+            return
+
+        cur.execute(
+            """
+            UPDATE participants
+            SET vote = %s
+            WHERE id = %s AND room_id = %s
+            """,
+            (card_value, participant_id, room_id),
+        )
+
+    emit("room_state", build_room_state(room_id), to=room_id)
+
+@socketio.on("reveal")
+def handle_reveal(data):
+    """Socket IO reveal handler"""
+
+    room_id = data.get("room_id")
+    participant_id = session.get("participant_id")
+
+    if not participant_id:
+        emit("error", {"message": "Not joined"})
+        return
+
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+        participant = cur.fetchone()
+
+        if not participant:
+            emit("error", {"message": "Invalid participant"})
+            return
+
+        cur.execute(
+            """
+            UPDATE rooms
+            SET votes_revealed = TRUE
+            WHERE id = %s
+            """,
+            (room_id,),
+        )
+
+    emit("room_state", build_room_state(room_id), to=room_id)
+
+@socketio.on("reset")
+def handle_reset(data):
+    """Socket IO reset handler"""
+
+    room_id = data.get("room_id")
+    participant_id = session.get("participant_id")
+
+    if not participant_id:
+        emit("error", {"message": "Not joined"})
+        return
+
+    db = get_db()
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+        participant = cur.fetchone()
+
+        if not participant:
+            emit("error", {"message": "Invalid participant"})
+            return
+
+        cur.execute(
+            """
+            UPDATE rooms
+            SET votes_revealed = FALSE
+            WHERE id = %s
+            """,
+            (room_id,),
+        )
+        cur.execute(
+            """
+            UPDATE participants
+            SET vote = NULL
+            WHERE room_id = %s
+            """,
+            (room_id,),
+        )
+
+    emit("room_state", build_room_state(room_id), to=room_id)
+
+# Socket IO config
+if __name__ == '__main__':
+    socketio.run(app)

@@ -50,7 +50,6 @@ body.room-page main {
     color: #c5dcc5;
 }
 
-/* Block: card-selector — bottom dock like reference */
 .card-selector {
     position: fixed;
     left: 0;

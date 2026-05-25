@@ -14,33 +14,83 @@
 {% block main %}
     <div class="room-page__header">
         <h1 class="room-page__title">Room</h1>
+        <button type="button" id="reveal-btn" class="btn btn-primary">Reveal</button>
+        <button type="button" id="reset-btn" class="btn btn-secondary">Reset</button>
         <p class="room-page__meta text-muted">http://127.0.0.1:5000/room/{{ room_id }}</p>
     </div>
 
-    <ul class="room-page__roster list-unstyled">
-        {% for participant in participants %}
-            <li class="room-page__roster-item"><p>Name: {{ participant.display_name }}</p></li>
-            <li class="room-page__roster-item"><p>Vote: {{ participant.vote }}</p></li>
-        {% endfor %}
-    </ul>
+    <ul id="roster" class="room-page__roster list-unstyled"></ul>
 
     <div class="card-selector" role="region" aria-label="Choose estimate">
         <ul class="card-selector__list">
             {% for value in deck %}
                 <li class="card-selector__item">
-                    <form action="{{ url_for('room', room_id=room_id) }}" method="post">
-                        <button
-                            type="submit"
-                            class="card-selector__btn{% if value == 'coffee' %} card-selector__btn--coffee{% endif %}"
-                            data-value="{{ value }}" value="{{ value }}" name="vote"
-                        >
-                            <span class="card-selector__text">
-                                {% if value == 'coffee' %}☕{% else %}{{ value }}{% endif %}
-                            </span>
-                        </button>
-                    </form>
+                    <button
+                        type="button"
+                        class="card-selector__btn{% if value == 'coffee' %} card-selector__btn--coffee{% endif %}"
+                        data-value="{{ value }}"
+                    >
+                        <span class="card-selector__text">
+                            {% if value == 'coffee' %}☕{% else %}{{ value }}{% endif %}
+                        </span>
+                    </button>
                 </li>
             {% endfor %}
         </ul>
     </div>
+
+    <script>
+        // JS logic for handling socket.IO 
+        const socket = io();
+        const roomId = "{{ room_id }}";
+        const roster = document.getElementById("roster");
+
+        function renderRoomState(data) {
+            roster.innerHTML = "";
+
+            data.participants.forEach(function (participant) {
+                const item = document.createElement("li");
+                item.className = "room-page__roster-item";
+
+                let voteText = "Not voted";
+                if (participant.vote !== null) {
+                    voteText = participant.vote;
+                } else if (participant.has_voted) {
+                    voteText = "Voted";
+                }
+
+                item.innerHTML = `
+                    <p>Name: ${participant.display_name}</p>
+                    <p>Vote: ${voteText}</p>
+                `;
+
+                roster.appendChild(item);
+            });
+        }
+  
+        socket.on("connect", function () {
+            socket.emit("join_room", { room_id: roomId });
+        });
+
+        socket.on("room_state", function (data) {
+            renderRoomState(data);
+        });
+  
+        document.querySelectorAll(".card-selector__btn").forEach(function (button) {
+            button.addEventListener("click", function () {
+                socket.emit("vote", {
+                    room_id: roomId,
+                    vote: button.dataset.value
+                });
+            });
+        });
+        // Reveal JS
+        document.getElementById("reveal-btn").addEventListener("click", function () {
+            socket.emit("reveal", { room_id: roomId });
+        });
+        // Reset JS 
+        document.getElementById("reset-btn").addEventListener("click", function () {
+            socket.emit("reset", { room_id: roomId });
+        });
+    </script>
 {% endblock %}
