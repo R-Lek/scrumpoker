@@ -244,7 +244,7 @@ body.room-page main {
     bottom: 0;
     z-index: 100;
     margin-top: 1.6rem;
-    padding: 1.15rem 1rem 1.35rem;
+    padding: 1.8rem 1rem 0.5rem;
     background: linear-gradient(to top, rgba(10, 15, 10, 0.98), rgba(10, 15, 10, 0.85));
 }
 
@@ -255,9 +255,10 @@ body.room-page main {
     align-items: stretch;
     gap: 1rem;
     margin: 0;
-    padding: 0;
+    padding: 0.35rem 0 0;
     list-style: none;
     overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
@@ -374,6 +375,6 @@ body.room-page main {
 
     .card-selector__list {
         justify-content: flex-start;
-        padding: 0 0.25rem;
+        padding: 0.35rem 0.25rem 0;
     }
 }
