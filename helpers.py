@@ -4,6 +4,7 @@ import psycopg
 from flask import render_template, session, g
 from psycopg.rows import dict_row
 
+# Possible card values for voting
 DECK = ("1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "coffee")
 
 def apology(message, code=400):

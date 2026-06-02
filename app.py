@@ -89,7 +89,7 @@ def create():
             # User is redirected to the room
             return redirect(url_for("room", room_id=session["room_id"]))
 
-    # When GET render the Create Room template
+    # Render the Create Room template
     else:
         return render_template("create.html")
 
@@ -171,6 +171,7 @@ def lobby(room_id):
         return redirect(url_for("room", room_id=room_id))
 
     else:
+        # Render the Lobby template
         return render_template("lobby.html", room_id=room_id)
 
 
@@ -178,7 +179,6 @@ def lobby(room_id):
 def logout():
     """Log user out"""
 
-    # Forget any user_id
     session.clear()
 
     # Redirect user to login form
