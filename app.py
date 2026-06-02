@@ -21,6 +21,7 @@ socketio = SocketIO(app)
 
 @app.teardown_request
 def close_db(exc):
+    """Close request DB connection"""
     db = g.pop("db", None)
     if db is not None:
         if exc is None:
