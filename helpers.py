@@ -1,9 +1,7 @@
 import os
 import psycopg
-import requests
 
-from flask import redirect, render_template, session, g
-from functools import wraps
+from flask import render_template, session, g
 from psycopg.rows import dict_row
 
 DECK = ("1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "coffee")

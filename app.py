@@ -1,7 +1,6 @@
 import os
-import psycopg
 
-from flask import Flask, flash, redirect, render_template, request, session, g, url_for
+from flask import Flask, redirect, render_template, request, session, g, url_for
 from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room
 from helpers import apology, DECK, build_room_state, get_db
