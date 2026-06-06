@@ -199,6 +199,7 @@ def logout():
     # Redirect the user to the home page
     return redirect("/")
 
+# The participant actions was amplified by using Codex to introduce Socket IO
 @socketio.on("join_room")
 def handle_join_room(data):
     """Socket IO room handler"""
