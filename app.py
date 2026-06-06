@@ -175,18 +175,35 @@ def lobby(room_id):
 
 @app.route("/logout")
 def logout():
-    """Log user out"""
+    """Log participant out of the current room"""
+
+    # Get the room and participant IDs from the session
+    room_id = session.get("room_id")
+    participant_id = session.get("participant_id")
+
+    # If the room and participant IDs are in the session, delete the participant from the database and emit the room state
+    if room_id and participant_id:
+        db = get_db()
+        db.execute(
+            """
+            DELETE FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+
+        socketio.emit("room_state", build_room_state(room_id), to=room_id)
 
     session.clear()
 
-    # Redirect user to login form
+    # Redirect the user to the home page
     return redirect("/")
 
 @socketio.on("join_room")
 def handle_join_room(data):
     """Socket IO room handler"""
 
-    # Get the room and participant IDs from the data sent by the client
+     # Get the room ID from the data sent by the client and the participant ID from the session
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
@@ -221,7 +238,7 @@ def handle_join_room(data):
 def handle_vote(data):
     """Socket IO vote handler"""
 
-    # Get the room and participant IDs from the data sent by the client
+    # Get the room ID and the card value from the data sent by the client and the participant ID from the session
     room_id = data.get("room_id")
     card_value = data.get("vote")
     participant_id = session.get("participant_id")
@@ -270,7 +287,7 @@ def handle_vote(data):
 def handle_reveal(data):
     """Socket IO reveal handler"""
 
-    # Get the room and participant IDs from the data sent by the client
+    # Get the room ID from the data sent by the client and the participant ID from the session
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
@@ -314,7 +331,7 @@ def handle_reveal(data):
 def handle_reset(data):
     """Socket IO reset handler"""
 
-    # Get the room and participant IDs from the data sent by the client
+    # Get the room ID from the data sent by the client and the participant ID from the session
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
