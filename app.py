@@ -35,18 +35,13 @@ def after_request(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Expires"] = 0
     response.headers["Pragma"] = "no-cache"
+
     return response
 
 
 @app.route("/")
 def index():
     """Show Scrum Poker rooms"""
-    # Future Feature
-
-    # db = get_db()
-    # with db.cursor() as cur:
-    #     cur.execute("SELECT id FROM rooms WHERE id = %s", (room_id,))
-    #     row = cur.fetchone()
 
     return render_template("index.html")
 
@@ -80,24 +75,26 @@ def create():
                     (roomId, displayName),
                 ).fetchone()[0]
 
+            # If the display name is already taken, render an apology
             except pg_errors.UniqueViolation:
                 return apology("display name is already taken", 400)
 
+            # Remember which room and participant belong to this browser session
             session["room_id"] = str(roomId)
             session["participant_id"] = participantId
 
             # User is redirected to the room
             return redirect(url_for("room", room_id=session["room_id"]))
 
-    # Render the Create Room template
     else:
+        # Render the Create Room template
         return render_template("create.html")
 
 @app.route("/room/<uuid:room_id>", methods=["GET"])
 def room(room_id):
     """ New Scrum Poker Room """
 
-    # Check if room exists
+    # Check if room exists in database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT id FROM rooms WHERE id = %s", (room_id,))
@@ -106,10 +103,9 @@ def room(room_id):
     if not room:
         return apology("room doesn't exist", 404)
 
-    # Check whether participant already has a session value
     participant_id = session.get("participant_id")
 
-    # Check if participant actually exist in database for this room
+    # Check if the user is already a participant in this room
     if participant_id:
         db = get_db()
         with db.cursor(row_factory=dict_row) as cur:
@@ -126,14 +122,14 @@ def room(room_id):
             if participant:
                 return render_template("room.html", room_id=room_id, deck=DECK)
 
-    # Redirect when user is no active participant
+    # Redirect to lobby if user is not a participant
     return redirect(url_for("lobby", room_id=room_id))
 
 @app.route("/lobby/<uuid:room_id>", methods=["GET", "POST"])
 def lobby(room_id):
     """Join new participants to existing Room"""
 
-    # Check if room exist
+    # Check if room exists in database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT id FROM rooms WHERE id = %s", (room_id,))
@@ -145,6 +141,7 @@ def lobby(room_id):
     if request.method == "POST":
         # Render an apology if the user’s input is blank
         displayName = request.form.get("displayname").strip()
+
         if not displayName:
             return apology("must provide display name", 400)
 
@@ -164,6 +161,7 @@ def lobby(room_id):
         except pg_errors.UniqueViolation:
             return apology("display name is already taken", 400)
 
+        # Remember which participant belongs to this browser session
         session["participant_id"] = participantId
         session["room_id"] = str(room_id)
 
@@ -188,13 +186,16 @@ def logout():
 def handle_join_room(data):
     """Socket IO room handler"""
 
+    # Get the room and participant IDs from the data sent by the client
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
+    # If the user is not a participant, emit an error
     if not participant_id:
         emit("error", {"message": "Not joined"})
         return
 
+    # Check if the participant exists in the database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -207,10 +208,12 @@ def handle_join_room(data):
         )
         participant = cur.fetchone()
 
+    # If the participant does not exist, emit an error
     if not participant:
         emit("error", {"message": "Invalid participant"})
         return
 
+    # Join the room and emit the room state
     join_room(room_id)
     emit("room_state", build_room_state(room_id), to=room_id)
 
@@ -218,18 +221,22 @@ def handle_join_room(data):
 def handle_vote(data):
     """Socket IO vote handler"""
 
+    # Get the room and participant IDs from the data sent by the client
     room_id = data.get("room_id")
     card_value = data.get("vote")
     participant_id = session.get("participant_id")
 
+    # If the user is not a participant, emit an error
     if not participant_id:
         emit("error", {"message": "Not joined"})
         return
 
+    # If the vote is not in the deck, emit an error
     if card_value not in DECK:
         emit("error", {"message": "Invalid vote"})
         return
 
+    # Update the participant's vote in the database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -242,6 +249,7 @@ def handle_vote(data):
         )
         participant = cur.fetchone()
 
+        # If the participant does not exist, emit an error
         if not participant:
             emit("error", {"message": "Invalid participant"})
             return
@@ -255,19 +263,23 @@ def handle_vote(data):
             (card_value, participant_id, room_id),
         )
 
+    # Emit the room state to the client
     emit("room_state", build_room_state(room_id), to=room_id)
 
 @socketio.on("reveal")
 def handle_reveal(data):
     """Socket IO reveal handler"""
 
+    # Get the room and participant IDs from the data sent by the client
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
+    # If the user is not a participant, emit an error
     if not participant_id:
         emit("error", {"message": "Not joined"})
         return
 
+    # Check if the participant exists in the database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -280,10 +292,12 @@ def handle_reveal(data):
         )
         participant = cur.fetchone()
 
+        # If the participant does not exist, emit an error
         if not participant:
             emit("error", {"message": "Invalid participant"})
             return
 
+        # Update the room's votes_revealed to true
         cur.execute(
             """
             UPDATE rooms
@@ -293,19 +307,23 @@ def handle_reveal(data):
             (room_id,),
         )
 
+    # Emit the room state to the client
     emit("room_state", build_room_state(room_id), to=room_id)
 
 @socketio.on("reset")
 def handle_reset(data):
     """Socket IO reset handler"""
 
+    # Get the room and participant IDs from the data sent by the client
     room_id = data.get("room_id")
     participant_id = session.get("participant_id")
 
+    # If the user is not a participant, emit an error
     if not participant_id:
         emit("error", {"message": "Not joined"})
         return
 
+    # Check if the participant exists in the database
     db = get_db()
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -318,10 +336,12 @@ def handle_reset(data):
         )
         participant = cur.fetchone()
 
+        # If the participant does not exist, emit an error
         if not participant:
             emit("error", {"message": "Invalid participant"})
             return
 
+        # Update the room's votes_revealed to false
         cur.execute(
             """
             UPDATE rooms
@@ -330,6 +350,8 @@ def handle_reset(data):
             """,
             (room_id,),
         )
+
+        # Update the participants' votes to null
         cur.execute(
             """
             UPDATE participants
@@ -339,6 +361,7 @@ def handle_reset(data):
             (room_id,),
         )
 
+    # Emit the room state to the client
     emit("room_state", build_room_state(room_id), to=room_id)
 
 # Socket IO config
