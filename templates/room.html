@@ -62,25 +62,31 @@
     </div>
 
     <script>
-        // JS logic for handling socket.IO
+        // Initialize the socket and the room ID
         const socket = io();
         const roomId = "{{ room_id }}";
         const roomUrl = "http://127.0.0.1:5000/room/{{ room_id }}";
+        // Initialize the current participant ID
         const currentParticipantId = {{ session.get("participant_id") | tojson }};
+        // Initialize the copy room button
         const copyRoomButton = document.getElementById("btn__copy");
+        // Initialize the seat areas
         const seatAreas = {
             top: document.getElementById("seats-top"),
             left: document.getElementById("seats-left"),
             right: document.getElementById("seats-right"),
             bottom: document.getElementById("seats-bottom")
         };
+        // Initialize the table status and action button
         const tableStatus = document.getElementById("table-status");
         const tableActionButton = document.getElementById("table-action-btn");
 
+        // Format the card label
         function formatCardLabel(value) {
             return value === "coffee" ? "☕" : value;
         }
 
+        // Update the action area
         function updateActionArea(currentParticipant, votesRevealed) {
             if (votesRevealed) {
                 tableStatus.textContent = "";
@@ -90,6 +96,7 @@
                 return;
             }
 
+            // If the current participant has voted, update the action area
             if (currentParticipant && currentParticipant.has_voted) {
                 tableStatus.textContent = "";
                 tableActionButton.textContent = "Reveal cards";
@@ -98,18 +105,21 @@
                 return;
             }
 
+            // If the current participant has not voted, update the action area
             tableStatus.textContent = "Pick a card!";
             tableActionButton.textContent = "";
             tableActionButton.dataset.action = "";
             tableActionButton.classList.add("table-grid__action--hidden");
         }
 
+        // Update the selected vote
         function updateSelectedVote(currentVote) {
             document.querySelectorAll(".card-selector__btn").forEach(function (button) {
                 button.classList.toggle("card-selector__btn--selected", button.dataset.value === currentVote);
             });
         }
 
+        // Distribute the participants to the seats
         function distributeParticipants(participants) {
             const buckets = { top: [], left: [], right: [], bottom: [] };
             const currentParticipant = participants.find(function (participant) {
@@ -120,10 +130,12 @@
             });
             const sideOrder = ["top", "left", "right", "bottom"];
 
+            // If the current participant is found, add them to the bottom bucket
             if (currentParticipant) {
                 buckets.bottom.push(currentParticipant);
             }
 
+            // Add the remaining participants to the buckets
             remainingParticipants.forEach(function (participant, index) {
                 const side = sideOrder[index % sideOrder.length];
                 buckets[side].push(participant);
@@ -132,6 +144,7 @@
             return { buckets, currentParticipant };
         }
 
+        // Build the player markup
         function buildPlayerMarkup(participant, votesRevealed) {
             const playerContainer = document.createElement("div");
             playerContainer.className = "player-slot";
@@ -145,31 +158,43 @@
             const card = document.createElement("div");
             card.className = "player-card";
 
+            // If the votes are revealed and the participant has voted, add the revealed class and set the card text
             if (votesRevealed && participant.vote !== null) {
                 card.classList.add("player-card--revealed");
                 card.textContent = formatCardLabel(participant.vote);
             } else if (!votesRevealed && participant.has_voted) {
+                // If the votes are not revealed and the participant has voted, add the hidden class
                 card.classList.add("player-card--hidden");
             } else {
+                // If the votes are not revealed and the participant has not voted, add the empty class
                 card.classList.add("player-card--empty");
             }
 
+            // Build the profile container
             const profileContainer = document.createElement("div");
             profileContainer.className = "player-slot__profile";
 
+            // Build the player name
             const playerName = document.createElement("div");
             playerName.className = "player-slot__name";
             playerName.textContent = participant.display_name;
 
+            // Append the card to the card container
             cardContainer.appendChild(card);
+            // Append the player name to the profile container
             profileContainer.appendChild(playerName);
+            // Append the card container to the player wrapper
             playerWrapper.appendChild(cardContainer);
+            // Append the profile container to the player wrapper
             playerWrapper.appendChild(profileContainer);
+            // Append the player wrapper to the player container
             playerContainer.appendChild(playerWrapper);
 
+            // Return the player container
             return playerContainer;
         }
 
+        // Build the room state
         function renderRoomState(data) {
             Object.values(seatAreas).forEach(function (seatArea) {
                 seatArea.innerHTML = "";
@@ -187,6 +212,7 @@
             updateSelectedVote(data.current_vote);
         }
 
+        // Copy the room URL
         async function copyRoomUrl() {
             if (navigator.clipboard && window.isSecureContext) {
                 await navigator.clipboard.writeText(roomUrl);
@@ -204,7 +230,7 @@
             document.body.removeChild(fallbackInput);
         }
 
-        // Briefly changes button text when clicked
+        // Flash the copy button text
         function flashCopyButton(label) {
             if (!copyRoomButton) {
                 return;
@@ -219,15 +245,18 @@
                 copyRoomButton.textContent = originalLabel;
             }, 1600);
         }
-  
+
+        // Join the room
         socket.on("connect", function () {
             socket.emit("join_room", { room_id: roomId });
         });
 
+        // Render the room state
         socket.on("room_state", function (data) {
             renderRoomState(data);
         });
   
+        // Add event listeners to the card selector buttons
         document.querySelectorAll(".card-selector__btn").forEach(function (button) {
             button.addEventListener("click", function () {
                 socket.emit("vote", {
@@ -236,6 +265,8 @@
                 });
             });
         });
+
+        // Add event listeners to the table action button
         tableActionButton.addEventListener("click", function () {
             if (tableActionButton.dataset.action === "reveal") {
                 socket.emit("reveal", { room_id: roomId });
@@ -246,6 +277,7 @@
             }
         });
 
+        // Add event listeners to the copy room button
         if (copyRoomButton) {
             copyRoomButton.addEventListener("click", async function () {
                 try {
