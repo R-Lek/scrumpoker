@@ -5,19 +5,15 @@
 {% block nav %}
     {% if session.get("participant_id") %}
         <div class="navbar-nav ms-auto">
-            <div class="collapse navbar-collapse" id="navbar"></div>
-            <a id="btn__copy" class="btn btn-success me-2" >Copy Room</a>
-            <a class="btn btn-success" href="/logout">Logout</a>
+            <div class="collapse navbar-collapse" id="navbar">
+                <a id="btn__copy" class="btn btn-success me-2" >Copy Room</a>
+                <a class="btn btn-success" href="/logout">Logout</a>
+            </div>
         </div>
     {% endif %}
 {% endblock %}
 
 {% block main %}
-    <!-- <div class="room-page__header">
-        <h1 class="room-page__title">Room</h1>
-        <p class="room-page__meta text-muted">http://127.0.0.1:5000/room/{{ room_id }}</p>
-    </div> -->
-
     <section class="table-layout" aria-label="Voting table">
         <div class="table-grid">
             <div aria-hidden="true"></div>

@@ -10,6 +10,7 @@ DECK = ("1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "coffee")
 def apology(message, code=400):
     """Render message as an apology to user."""
 
+    # Escape special characters
     def escape(s):
         """
         Escape special characters.
@@ -34,8 +35,10 @@ def apology(message, code=400):
 def build_room_state(room_id):
     """Build room_state payload for Socket IO"""
 
+    # Get the current participant ID from the session
     current_participant_id = session.get("participant_id")
     db = get_db()
+    # Get the room's votes_revealed and the participants' IDs, display names, and votes
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
@@ -47,6 +50,7 @@ def build_room_state(room_id):
         )
         room = cur.fetchone()
 
+        # Get the participants' IDs, display names, and votes
         cur.execute(
             """
             SELECT id, display_name, vote
@@ -58,14 +62,17 @@ def build_room_state(room_id):
         )
         participants = cur.fetchall()
 
+    # Get the room's votes_revealed and the current participant's vote
     votes_revealed = room["votes_revealed"]
     current_vote = None
 
+    # Get the current participant's vote
     for participant in participants:
         if participant["id"] == current_participant_id:
             current_vote = participant["vote"]
             break
 
+    # Return the room state
     return {
         "room_id": str(room_id),
         "votes_revealed": votes_revealed,
@@ -83,6 +90,9 @@ def build_room_state(room_id):
 
 
 def get_db():
+    """Get a database connection"""
+
+    # If the database connection is not in the global context, create it
     if "db" not in g:
         g.db = psycopg.connect(os.environ["DATABASE_URL"])
     return g.db

@@ -1,11 +1,3 @@
-/* Size for brand */
-nav .navbar-brand
-{
-    font-size: xx-large;
-}
-
-/* ---- Room page + card selector (BEM) ---- */
-
 :root {
     --room-bg: #0a0f0a;
     --room-surface: #121a12;
@@ -23,26 +15,6 @@ body.room-page {
 body.room-page main {
     padding-top: 2rem;
     padding-bottom: 2.5rem;
-}
-
-.room-page__header {
-    margin-bottom: 1rem;
-}
-
-.room-page__title {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    color: rgba(240, 250, 240, 0.78);
-}
-
-.room-page__meta {
-    display: inline-block;
-    font-size: 0.85rem;
-    word-break: break-all;
-    color: var(--room-text-muted) !important;
 }
 
 .table-layout {
@@ -147,7 +119,7 @@ body.room-page main {
     border-radius: 1.1rem;
     background: var(--room-accent);
     color: #0f170f;
-    font-size: clamp(1rem, 2vw, 2rem);
+    font-size: 1.2rem;
     font-weight: 700;
     transition: transform 0.12s ease, background-color 0.12s ease;
 }
