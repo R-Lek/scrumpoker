@@ -9,6 +9,53 @@
 {% endblock %}
 
 {% block main %}
-    <h4>Create a room</h4>
+    <h4>Scrum Poker</h4>
+    <!-- style an example of the voting table -->
+    <div class="table-layout">
+        <div class="table-grid">
+            <div class="table-grid__top">
+                <div class="player-slot">
+                    <div class="player-slot__wrapper">
+                        <div class="player-slot__card-container">
+                            <div class="player-card">2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-grid__bottom">
+                <div class="player-slot">
+                    <div class="player-slot__wrapper">
+                        <div class="player-slot__card-container">
+                            <div class="player-card">2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-grid__left">
+                <div class="player-slot">
+                    <div class="player-slot__wrapper">
+                        <div class="player-slot__card-container">
+                            <div class="player-card">5</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-grid__right">
+                <div class="player-slot">
+                    <div class="player-slot__wrapper">
+                        <div class="player-slot__card-container">
+                            <div class="player-card">3</div>
+                        </div>
+                    </div>
+                </div>
+            </div>  
+            <div class="table-grid__table">
+                <div class="homepage__table-content">
+                    <p>Host your own session!</p>
+                    <a class="btn btn-success" href="/create">New room</a>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
