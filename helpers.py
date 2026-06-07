@@ -1,7 +1,7 @@
 import os
 import psycopg
 
-from flask import render_template, session, g
+from flask import render_template, g
 from psycopg.rows import dict_row
 
 # Possible card values for voting
@@ -35,8 +35,6 @@ def apology(message, code=400):
 def build_room_state(room_id):
     """Build room_state payload for Socket IO"""
 
-    # Get the current participant ID from the session
-    current_participant_id = session.get("participant_id")
     db = get_db()
     # Get the room's votes_revealed and the participants' IDs, display names, and votes
     with db.cursor(row_factory=dict_row) as cur:
@@ -64,19 +62,11 @@ def build_room_state(room_id):
 
     # Get the room's votes_revealed and the current participant's vote
     votes_revealed = room["votes_revealed"]
-    current_vote = None
-
-    # Get the current participant's vote
-    for participant in participants:
-        if participant["id"] == current_participant_id:
-            current_vote = participant["vote"]
-            break
 
     # Return the room state
     return {
         "room_id": str(room_id),
         "votes_revealed": votes_revealed,
-        "current_vote": current_vote,
         "participants": [
             {
                 "id": participant["id"],
@@ -86,6 +76,32 @@ def build_room_state(room_id):
             }
             for participant in participants
         ],
+    }
+
+
+def build_participant_state(room_id, participant_id):
+    """Build participant-specific Socket IO payload."""
+
+    current_vote = None
+    db = get_db()
+
+    with db.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT vote
+            FROM participants
+            WHERE id = %s AND room_id = %s
+            """,
+            (participant_id, room_id),
+        )
+        participant = cur.fetchone()
+
+    if participant:
+        current_vote = participant["vote"]
+
+    return {
+        "room_id": str(room_id),
+        "current_vote": current_vote,
     }
 
 

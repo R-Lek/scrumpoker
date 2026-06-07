@@ -209,7 +209,14 @@
             });
 
             updateActionArea(placement.currentParticipant, data.votes_revealed);
-            updateSelectedVote(data.current_vote);
+
+            const votesAreCleared = !data.votes_revealed && data.participants.every(function (participant) {
+                return !participant.has_voted;
+            });
+
+            if (votesAreCleared) {
+                updateSelectedVote(null);
+            }
         }
 
         // Copy the room URL
@@ -254,6 +261,10 @@
         // Render the room state
         socket.on("room_state", function (data) {
             renderRoomState(data);
+        });
+
+        socket.on("participant_state", function (data) {
+            updateSelectedVote(data.current_vote);
         });
   
         // Add event listeners to the card selector buttons

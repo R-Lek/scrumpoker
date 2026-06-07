@@ -3,7 +3,7 @@ import os
 from flask import Flask, redirect, render_template, request, session, g, url_for
 from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room
-from helpers import apology, DECK, build_room_state, get_db
+from helpers import apology, DECK, build_participant_state, build_room_state, get_db
 from psycopg import errors as pg_errors
 from psycopg.rows import dict_row
 
@@ -234,6 +234,7 @@ def handle_join_room(data):
     # Join the room and emit the room state
     join_room(room_id)
     emit("room_state", build_room_state(room_id), to=room_id)
+    emit("participant_state", build_participant_state(room_id, participant_id))
 
 @socketio.on("vote")
 def handle_vote(data):
@@ -283,6 +284,8 @@ def handle_vote(data):
 
     # Emit the room state to the client
     emit("room_state", build_room_state(room_id), to=room_id)
+    # Emit the participant state to the client
+    emit("participant_state", build_participant_state(room_id, participant_id))
 
 @socketio.on("reveal")
 def handle_reveal(data):
