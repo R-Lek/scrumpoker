@@ -1,4 +1,6 @@
-## Scrum Poker web app
+# Scrum Poker web app
+#### Video Demo: https://www.youtube.com/watch?v=ykbmq5ncoPY
+### Description:
 
 Scrum Poker is a small real-time planning poker web app for estimating work with a team.
 One person creates a room, shares the room link, and everyone joins with a display name.
