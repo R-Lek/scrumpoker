@@ -78,10 +78,10 @@ def build_room_state(room_id):
         ],
     }
 
-
 def build_participant_state(room_id, participant_id):
     """Build participant-specific Socket IO payload."""
 
+    # current_vote is emitted only to participant
     current_vote = None
     db = get_db()
 
